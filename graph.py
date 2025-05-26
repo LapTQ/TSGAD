@@ -26,7 +26,7 @@ class Graph:
     """
 
     def __init__(self,
-                 layout='openpose',
+                 layout,
                  strategy='spatial',
                  headless=False,
                  max_hop=1):
@@ -62,6 +62,31 @@ class Graph:
             neighbor_link = [(i - 1, j - 1) for (i, j) in neighbor_1base]
             self.edge = self_link + neighbor_link
             self.center = 21 - 1
+        elif layout == "coco":
+            self.num_node = 17
+            self_link = [(i, i) for i in range(self.num_node)]
+            neighbor_link = [
+                (0, 1),
+                (0, 2),
+                (1, 3),
+                (2, 4),
+                (0, 5),
+                (0, 6),
+                (5, 6),
+                (11, 12),
+                (5, 11),
+                (6, 12),
+                (5, 7),
+                (6, 8),
+                (7, 9),
+                (8, 10),
+                (11, 13),
+                (12, 14),
+                (13, 15),
+                (14, 16),
+            ]
+            self.edge = self_link + neighbor_link
+            self.center = 0
 
         else:
             raise ValueError("Do Not Exist This Layout.")

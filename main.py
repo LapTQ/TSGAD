@@ -14,11 +14,15 @@ from utils.eval import score_dataset, get_train_dist
 import yaml
 import os
 from scipy.stats import norm, multivariate_normal
+import pickle
 
 def main ():
     print('sedaye mano darid az Chalotte America!')
     parser = init_parser()
     args = parser.parse_args()
+
+    args.kp18_format = eval(args.kp18_format) if args.kp18_format is not None else None
+
     if args.seed == 999:  # Record and init seed
         args.seed = torch.initial_seed()
         np.random.seed(0)
@@ -79,7 +83,7 @@ def main ():
         trained_model = trainer.train(checkpoint_filename='vae', args=args)
         
     else:
-        checkpoint = torch.load(args.model_ckpt_dir)
+        checkpoint = torch.load(args.model_ckpt_dir, weights_only=False)
         vae.load_state_dict(checkpoint['state_dict'])
         print('Model loaded successfully!')
         vae.to(args.device)
@@ -88,6 +92,10 @@ def main ():
     eval_elbo = []
     dataset_size = len(loader['test'].dataset)
     mean, std = get_train_dist (vae, loader['test'], args)
+    model_id = os.path.split(args.model_ckpt_dir)[-1]
+    # laptq
+    # with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-mean-test-{}.pkl'.format(model_id), 'wb') as f:
+    #     pickle.dump(mean, f)
     mean = torch.from_numpy(mean).to(args.device)
 
     # distribution_m = norm(loc=m_mean, scale=m_std)
@@ -102,7 +110,7 @@ def main ():
             data = data[:,0:2, :, :]
             obj, elbo = vae.elbo(data, dataset_size)
             eval_elbo.extend(elbo.cpu().numpy())
-            data = data.view(data.shape[0], 2, args.seg_len, 18)
+            data = data.view(data.shape[0], 2, args.seg_len, 17)
             _, z_params, _ = vae.encode(data)
             z_params = z_params.view(z_params.shape[0], -1)
             l2_distance = (torch.sqrt(torch.sum((z_params - mean)**2, dim=1))).cpu().numpy()
@@ -113,7 +121,7 @@ def main ():
             
             # Calculate the joint probability by multiplying the probabilities of the two variables
             # joint_probability = probability_m * probability_v
-    auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_loss), dataset['test'].metadata, save_results=args.save_scores, seg_len=args.seg_len, directory=args.score_save_dir)
+    auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_loss), dataset['test'].metadata, save_results=args.save_scores, seg_len=args.seg_len, directory=args.score_save_dir, model_id=model_id)
     print("*** Normal Dist ***")
     print('AUC ROC: {}'.format(auc_roc))
     print('AUC PR: {}'.format(auc_pr))

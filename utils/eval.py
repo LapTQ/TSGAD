@@ -1,7 +1,7 @@
 import os 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
-from sklearn.metrics import roc_auc_score, precision_recall_curve, roc_curve,auc
+from sklearn.metrics import roc_auc_score, precision_recall_curve, roc_curve, auc
 from sklearn.preprocessing import StandardScaler, RobustScaler, QuantileTransformer, MaxAbsScaler, MinMaxScaler
 import numpy as np
 import matplotlib.pyplot as plt
@@ -89,10 +89,24 @@ class ScoreNormalization:
 def score_norm (x, range=1, alpha=1, beta=0):
     return range/(1+np.exp(-alpha*x+beta))
 
-def score_dataset(mask_root, score_vals, metadata, max_clip=None, scene_id=None, save_results=False, directory="results/chad_score_normal_dist/", seg_len=24):
+import pickle
+def score_dataset(mask_root, score_vals, metadata, max_clip=None, scene_id=None, save_results=False, directory="results/chad_score_normal_dist/", seg_len=24, model_id=None):
+    # laptq:
+    # print(mask_root)
+    # print(score_vals.shape, score_vals[:10])
+    # print(metadata)
     gt_arr, scores_arr, score_ids_arr, metadata_arr = get_dataset_scores(mask_root, score_vals, metadata, max_clip, scene_id, save_results=save_results, directory=directory)
+    # laptq: 
+    # print('>>>>>>>>>', gt_arr)
+    # print('+++++++++', scores_arr)
     gt_np = np.concatenate(gt_arr)
     scores_np = np.concatenate(scores_arr)
+    # laptq
+    # if model_id is not None:
+    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-gt.pkl', 'wb') as f:
+    #         pickle.dump(gt_np, f)
+    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-scores-{}.pkl'.format(model_id), 'wb') as f:
+    #         pickle.dump(scores_np, f)
     # scores_np = scores_arr
     auc, shift, sigma, auc_pr, eer, eer_th = score_align(scores_np, gt_np, seg_len=seg_len) # fix the seg_len 
     return auc, shift, sigma, auc_pr, eer, eer_th
@@ -143,7 +157,7 @@ def get_dataset_scores(mask_root, scores, metadata, max_clip=None, scene_id=None
             print ("found you motherfucker!")
             continue
         clip_ppl_score_arr = np.stack(list(clip_person_scores_dict.values()))
-        clip_score = np.amax(clip_ppl_score_arr, axis=0)
+        clip_score = np.amax(clip_ppl_score_arr, axis=0)    # laptq: neu trong frame co 1 nguoi abnormal thi frame do la abnormal => 
         fig_score_id = [list(clip_fig_idxs)[i] for i in np.argmax(clip_ppl_score_arr, axis=0)]
         dataset_gt_arr.append(clip_gt)
         dataset_scores_arr.append(clip_score)
@@ -158,17 +172,25 @@ def get_dataset_scores(mask_root, scores, metadata, max_clip=None, scene_id=None
     return dataset_gt_arr, dataset_scores_arr, dataset_score_ids_arr, dataset_metadata_arr
 
 
+from pprint import pprint
 def score_align(scores_np, gt, seg_len=30, sigma=40):
     scores_shifted = np.zeros_like(scores_np)
     shift = seg_len + (seg_len // 2) - 1
     scores_shifted[shift:] = scores_np[:-shift]
     scores_smoothed = gaussian_filter1d(scores_shifted, sigma)
-    auc_roc = roc_auc_score(gt, scores_smoothed)
-    precision, recall, thresholds = precision_recall_curve(gt, scores_smoothed)
+    
+    # laptq
+    scores_to_eval = scores_np
+    # scores_to_eval = scores_smoothed
+    
+    auc_roc = roc_auc_score(gt, scores_to_eval)
+    # laptq:
+    # pprint(list(zip(gt.tolist(), scores_np.tolist(), scores_shifted.tolist(), scores_smoothed.tolist())))
+    precision, recall, thresholds = precision_recall_curve(gt, scores_to_eval)
     
     auc_precision_recall = auc(recall, precision)
 
-    fpr, tpr, threshold = roc_curve(gt, scores_smoothed, pos_label=1)
+    fpr, tpr, threshold = roc_curve(gt, scores_to_eval, pos_label=1)
     fnr = 1 - tpr
     eer_threshold = threshold[np.nanargmin(np.absolute((fnr - fpr)))]
     EER = fpr[np.nanargmin(np.absolute((fnr - fpr)))]
@@ -208,7 +230,7 @@ def get_train_dist(model, train_loader, args=None):
             model.eval()
             data = data_arr[0].to(args.device, non_blocking=True)
             data = data[:,0:2, :, :]
-            data = data.view(data.shape[0], 2, args.seg_len, 18)
+            data = data.view(data.shape[0], 2, args.seg_len, 17)
             _, z_params, _ = model.encode(data)
             param_list.append(z_params.view(data.shape[0], -1).cpu())
             param_arr = np.concatenate(param_list, axis=0)

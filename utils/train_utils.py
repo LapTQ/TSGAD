@@ -168,7 +168,7 @@ class Trainer:
         win_train_elbo = vis.line(torch.Tensor(train_elbo), opts={'markers': True}, win=win_train_elbo)
             
     def train(self, num_epochs=None, log=True, checkpoint_filename=None, args=None):
-        best_loss = 0
+        best_loss = -1e9
         train_elbo = []
         time_str = time.strftime("%b%d_%H%M_")
         if checkpoint_filename is None:
@@ -189,13 +189,17 @@ class Trainer:
             print("Started epoch {}".format(epoch))
             self.model.train()
             loss = []
-            for itern, data_arr in enumerate(tqdm(self.train_loader)):
+            pbar = tqdm(self.train_loader)
+            for itern, data_arr in enumerate(pbar):
                 it = it + 1
                 data = data_arr[0].to(args.device, non_blocking=True)
                 data = data[:,0:2, :, :]
                 self.anneal_kl(it)
                 self.optimizer.zero_grad()
+                mtime_1 = time.time()
                 obj, elbo = self.model.elbo(data, dataset_size)
+                mtime_2 = time.time()
+                pbar.set_postfix(elbo_time=mtime_2-mtime_1, elbo_fps=1/(mtime_2-mtime_1))
                 
                 if utils.isnan(obj).any():
                     raise ValueError('NaN spotted in objective.')
@@ -205,8 +209,9 @@ class Trainer:
                 loss.append(elbo_running_mean.avg)
                 
             print('[Epoch %03d] \tbeta %.2f \tlambda %.2f training ELBO: %.4f ' % (
-                epoch, self.model.beta, self.model.lamb,
-                torch.stack(loss).mean()))
+                epoch, self.model.beta, self.model.lamb, torch.stack(loss).mean()
+                )
+            )
             new_lr = self.optimizer.param_groups[0]['lr']
             new_lr = self.adjust_lr(epoch, new_lr)
             print('lr: {0:.3e}'.format(new_lr))
@@ -214,22 +219,22 @@ class Trainer:
             
             if torch.stack(loss).mean()> best_loss:
                 best_loss = torch.stack(loss).mean()
-                self.save_checkpoint(epoch, args=args, filename=checkpoint_filename)
-                print("Model saved!")
-                eval_loss = []
-                dataset_size = len(self.test_loader.dataset)
-                self.model.eval()
-                with torch.no_grad():
-                    for i, data_batch in enumerate(tqdm(self.test_loader)):
-                        data = data_batch[0].to(args.device, non_blocking=True)
-                        data = data[:,0:2, :, :]
-                        obj, elbo = self.model.elbo(data, dataset_size)
-                        eval_loss.extend(elbo.cpu().numpy())
-                auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_loss), self.test_loader.dataset.metadata, save_results=False, seg_len=args.seg_len)
-                print('AUC ROC: {}'.format(auc_roc))
-                print('AUC PR: {}'.format(auc_pr))
-                print('EER: {}'.format(eer))
-                print('EER TH: {}'.format(eer_th))
+            self.save_checkpoint(epoch, args=args, filename=checkpoint_filename)
+            print("Model saved!")
+            eval_loss = []
+            dataset_size = len(self.test_loader.dataset)
+            self.model.eval()
+            with torch.no_grad():
+                for i, data_batch in enumerate(tqdm(self.test_loader)):
+                    data = data_batch[0].to(args.device, non_blocking=True)
+                    data = data[:,0:2, :, :]
+                    obj, elbo = self.model.elbo(data, dataset_size)
+                    eval_loss.extend(elbo.cpu().numpy())
+            auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_loss), self.test_loader.dataset.metadata, save_results=False, seg_len=args.seg_len)
+            print('AUC ROC: {}'.format(auc_roc))
+            print('AUC PR: {}'.format(auc_pr))
+            print('EER: {}'.format(eer))
+            print('EER TH: {}'.format(eer_th))
             
         if args.visdom:
             self.plot_elbo(train_elbo, vis)

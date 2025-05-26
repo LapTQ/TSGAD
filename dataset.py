@@ -123,7 +123,8 @@ def get_dataset_and_loader(args, trans_list, only_test=False):
     loader_args = {'batch_size': args.batch_size, 'num_workers': args.num_workers, 'pin_memory': True}
     dataset_args = {'headless': args.headless, 'scale': args.norm_scale, 'scale_proportional': args.prop_norm_scale,
                     'seg_len': args.seg_len, 'return_indices': True, 'return_metadata': True, "dataset": args.dataset,
-                    'train_seg_conf_th': args.train_seg_conf_th, 'specific_clip': args.specific_clip}
+                    'train_seg_conf_th': args.train_seg_conf_th, 'specific_clip': args.specific_clip,
+                    'kp18_format': args.kp18_format}
     dataset, loader = dict(), dict()
     splits = ['train', 'test'] if not only_test else ['test']
     for split in splits:
@@ -167,6 +168,7 @@ def gen_dataset(person_json_root, num_clips=None, kp18_format=True, ret_keys=Fal
     dataset = dataset_args.get('dataset', 'ShanghaiTech')
 
     dir_list = os.listdir(person_json_root)
+    # laptq ATTENTION
     if dataset=='c1' or dataset=='c2' or dataset=='c3' or dataset=='c4' or dataset=='combined' or dataset =='corridor' or dataset=='Avenue' or dataset=='CPCC_X_setup' or dataset=='CPCC' or dataset=='CPCC0' or dataset=='CPCC1' or dataset=='CPCC2' or dataset=='CPCC3' or dataset=='CPCC4' or dataset=='CPCC5' or dataset=='CPCC6':
         json_list = sorted([fn for fn in dir_list])
     else:
@@ -184,7 +186,7 @@ def gen_dataset(person_json_root, num_clips=None, kp18_format=True, ret_keys=Fal
             person_dict_fn_ = person_dict_fn.split('.')[0]  
             scene_id, clip_id = person_dict_fn_.split('_')[:2]
         else:
-            scene_id, clip_id = person_dict_fn.split('_')[:2]
+            scene_id, clip_id = person_dict_fn.split('_')[:2]       # laptq ATTENTION
             if shanghaitech_hr_skip(dataset=="ShaghaiTech-HR", scene_id, clip_id):
                 continue
         clip_json_path = os.path.join(person_json_root, person_dict_fn)

@@ -19,8 +19,8 @@ from lib.flows import FactorialNormalizingFlow
 from graph import Graph
 from st_graph_conv_block import ConvBlock
 from tqdm import tqdm
-from elbo_decomposition import elbo_decomposition
-from plot_latent_vs_true import plot_vs_gt_shapes, plot_vs_gt_faces  # noqa: F401
+# from elbo_decomposition import elbo_decomposition
+# from plot_latent_vs_true import plot_vs_gt_shapes, plot_vs_gt_faces  # noqa: F401
 
 
 class MLPEncoder(nn.Module):
@@ -192,7 +192,7 @@ class GraphEncoder(nn.Module):
         
         # Load graph
         if graph_args is None:
-            graph_args = {'strategy': 'spatial', 'layout': 'openpose', 'headless': headless}
+            graph_args = {'strategy': 'spatial', 'layout': 'coco', 'headless': headless}
         self.graph = Graph(**graph_args)
         dec_1st_residual = kwargs.get('dec_1st_residual', None)
         
@@ -311,7 +311,7 @@ class GraphDecoder(nn.Module):
         super(GraphDecoder, self).__init__()
         # self.x_size = x_size
         if graph_args is None:
-            graph_args = {'strategy': 'spatial', 'layout': 'openpose', 'headless': headless}
+            graph_args = {'strategy': 'spatial', 'layout': 'coco', 'headless': headless}
         self.graph = Graph(**graph_args)
         dec_1st_residual = kwargs.get('dec_1st_residual', None)
 
@@ -522,7 +522,7 @@ class VAE(nn.Module):
 
     def decode(self, z, x_size=None):
         if self.graph:
-            x_params = self.decoder.forward(z, x_size).view(z.size(0), 2, self.input_frames, 18) # hardcoded a bit N, C, T, V, M 
+            x_params = self.decoder.forward(z, x_size).view(z.size(0), 2, self.input_frames, self.num_kpts) # hardcoded a bit N, C, T, V, M 
         else:
             x_params = self.decoder.forward(z).view(z.size(0), 1, 64, 64)
         xs = self.x_dist.sample(params=x_params) # Why do you sample again? the output of the decoder is distribution parameters> Why?
@@ -552,8 +552,12 @@ class VAE(nn.Module):
         # log p(x|z) + log p(z) - log q(z|x)
         batch_size = x.size(0)
         
+        if not hasattr(self, 'num_kpts'):
+            self.num_kpts = None
+        if self.num_kpts is None:
+            self.num_kpts = x.size(-1)
         if self.graph:
-            x = x.view(batch_size, 2, self.input_frames, 18) 
+            x = x.view(batch_size, 2, self.input_frames, self.num_kpts) 
         else:
             x = x.view(batch_size, 1, 64, 64)
         # prior_params = self._get_prior_params(batch_size)

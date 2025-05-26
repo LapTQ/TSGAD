@@ -22,7 +22,7 @@ class SAGC(nn.Module):
         self.adj_types = 3
         self.inter_c = inter_channels
         if stat_adj is None:  # Default value for A:
-            layout = 'ntu-rgb+d' if ntu else 'openpose'
+            layout = 'coco' # 'ntu-rgb+d' if ntu else 'openpose'
             self.graph = Graph(strategy='spatial', layout=layout, headless=headless)
             stat_adj = self.graph.A
 

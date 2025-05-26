@@ -6,7 +6,7 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-plt.style.use('seaborn-ticks')
+# plt.style.use('seaborn-ticks')
 
 
 def get_ab_labels(global_data_np_ab, segs_meta_ab, path_to_vid_dir='', segs_root=''):
@@ -69,8 +69,12 @@ def gen_clip_seg_data_np(clip_dict, start_ofst=0, seg_stride=4, seg_len=24, scen
     score_segs_data = []
     pose_segs_meta = []
     person_keys = {}
-    for idx in sorted(clip_dict.keys(), key=lambda x: int(x)):
-        sing_pose_np, sing_pose_meta, sing_pose_keys, sing_scores_np = single_pose_dict2np(clip_dict, idx)
+    for idx in sorted(clip_dict.keys(), key=lambda x: int(x)): # laptq: idx == person ID
+        sing_pose_np, sing_pose_meta, sing_pose_keys, sing_scores_np = single_pose_dict2np(clip_dict, idx)  
+        # laptq:
+        # sing_pose_np: (num frames of the person in this clip, num keypoints (17), 3) 
+        # sing_pose_meta is (person ID, first frame ID of the person)
+        # sing_pose_keys: list of frame IDs of the person in this clip
         if dataset == "UBnormal":
             key = ('{:02d}_{}_{:02d}'.format(int(scene_id), clip_id, int(idx)))
         else:
@@ -101,6 +105,11 @@ def gen_clip_seg_data_np(clip_dict, start_ofst=0, seg_stride=4, seg_len=24, scen
     global_pose_data_np = np.concatenate(global_pose_data, axis=0)
     del pose_segs_data
     # del global_pose_data
+
+    # laptq:
+    # pose_segs_data_np: (num segments, segment length, num keypoints (17), 3), this is for 1 clip
+    # pose_segs_meta: [(scene ID, clip ID, person ID, start frame ID of the segment), ...] x num segments
+
     if ret_keys:
         return pose_segs_data_np, pose_segs_meta, person_keys, global_pose_data_np, global_pose_data, score_segs_data_np
     else:
@@ -108,7 +117,7 @@ def gen_clip_seg_data_np(clip_dict, start_ofst=0, seg_stride=4, seg_len=24, scen
 
 
 def single_pose_dict2np(person_dict, idx):
-    single_person = person_dict[str(idx)]
+    single_person = person_dict[str(idx)]   # laptq: idx == person ID
     sing_pose_np = []
     sing_scores_np = []
     if isinstance(single_person, list):
@@ -118,10 +127,10 @@ def single_pose_dict2np(person_dict, idx):
         single_person = single_person_dict
     single_person_dict_keys = sorted(single_person.keys())
     sing_pose_meta = [int(float(idx)), int(float(single_person_dict_keys[0]))]  # Meta is [index, first_frame]
-    for key in single_person_dict_keys:
+    for key in single_person_dict_keys:     # laptq: key == frame ID
         curr_pose_np = np.array(single_person[key]['keypoints']).reshape(-1, 3)
         sing_pose_np.append(curr_pose_np)
-        sing_scores_np.append(single_person[key]['scores'])
+        sing_scores_np.append(single_person[key]['scores'] if single_person[key]['scores'] is not None else 1)
     sing_pose_np = np.stack(sing_pose_np, axis=0)
     sing_scores_np = np.stack(sing_scores_np, axis=0)
     return sing_pose_np, sing_pose_meta, single_person_dict_keys, sing_scores_np
@@ -179,5 +188,8 @@ def split_pose_to_segments(single_pose_np, single_pose_meta, single_pose_keys, s
                 pose_segs_meta.append([int(scene_id), clip_id, int(single_pose_meta[0]), int(start_key)])
             else:
                 pose_segs_meta.append([int(scene_id), int(clip_id), int(single_pose_meta[0]), int(start_key)])
+    # laptq:
+    # pose_segs_np: (num segments, segment length, num keypoints (17), 3)
+    # pose_segs_meta: [(scene ID, clip ID, person ID, start frame ID of the segment), ...] x num segments
     return pose_segs_np, pose_segs_meta, pose_score_np
 

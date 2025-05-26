@@ -23,8 +23,10 @@ def init_sub_args(args):
         args.vid_path = {'train': os.path.join(args.data_dir, dataset, 'train/images/'),
                          'test':  os.path.join(args.data_dir, dataset, 'test/frames/')}
 
-        args.pose_path = {'train': os.path.join(args.data_dir, dataset, 'pose', 'train/'),
-                          'test':  os.path.join(args.data_dir, dataset, 'pose', 'test/')}
+        # args.pose_path = {'train': os.path.join(args.data_dir, dataset, 'pose', 'train/'),
+        #                   'test':  os.path.join(args.data_dir, dataset, 'pose', 'test/')}
+        args.pose_path = {'train':  args.pose_path_train,
+                          'test':  args.pose_path_test}
     args.pose_path["train_abnormal"] = args.pose_path_train_abnormal
     args.ckpt_dir = None
     model_args = args_rm_prefix(args, 'model_')
@@ -63,6 +65,7 @@ def init_parser(default_data_dir='data/', default_exp_dir='data/exp_dir'):
     parser.add_argument('--seg_stride', type=int, default=12, metavar='SGST', help='Stride for training segment sliding window')
     parser.add_argument('--specific_clip', type=int, default=None, help='Train and Eval on Specific Clip')
     parser.add_argument('--global_pose_segs', action='store_false', help='Use unormalized pose segs')
+    parser.add_argument('--kp18_format', type=str, help='Use 18 keypoints format')
 
     # Model Params
     parser.add_argument('--model_ckpt_dir', type=str, metavar='model', help="Path to a pretrained model")
