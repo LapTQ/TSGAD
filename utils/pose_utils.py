@@ -89,6 +89,8 @@ def gen_clip_seg_data_np(clip_dict, start_ofst=0, seg_stride=4, seg_len=24, scen
                                                                                             clip_id=clip_id,
                                                                                             single_score_np=sing_scores_np,
                                                                                             dataset=dataset)
+        if len(curr_pose_segs_np) == 0:
+            continue
         if dataset == 'c1' or dataset == 'c2' or dataset == 'c3'or dataset == 'c4' or dataset == 'combined' or dataset=='CPCC_X_setup' or dataset=='CPCC' or dataset=='CPCC0' or dataset=='CPCC1' or dataset=='CPCC2' or dataset=='CPCC3' or dataset=='CPCC4' or dataset=='CPCC5' or dataset=='CPCC6':
             curr_pose_score_np = np.zeros(curr_pose_score_np.shape) 
         pose_segs_data.append(curr_pose_segs_np)
@@ -102,7 +104,10 @@ def gen_clip_seg_data_np(clip_dict, start_ofst=0, seg_stride=4, seg_len=24, scen
     else:
         pose_segs_data_np = np.concatenate(pose_segs_data, axis=0)
         score_segs_data_np = np.concatenate(score_segs_data, axis=0)
-    global_pose_data_np = np.concatenate(global_pose_data, axis=0)
+    if len(global_pose_data) == 0:
+        global_pose_data_np = np.empty((0, 17, 3))
+    else:
+        global_pose_data_np = np.concatenate(global_pose_data, axis=0)
     del pose_segs_data
     # del global_pose_data
 
@@ -147,7 +152,7 @@ def is_single_person_dict_continuous(sing_person_dict):
     return is_seg_continuous(sorted_seg_keys, start_key, person_dict_items)
 
 
-def is_seg_continuous(sorted_seg_keys, start_key, seg_len, missing_th=2):
+def is_seg_continuous(sorted_seg_keys, start_key, seg_len, missing_th=1e9):
     """
     Checks if an input clip is continuous or if there are frames missing
     :param sorted_seg_keys:

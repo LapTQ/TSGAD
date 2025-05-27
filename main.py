@@ -94,7 +94,7 @@ def main ():
     mean, std = get_train_dist (vae, loader['test'], args)
     model_id = os.path.split(args.model_ckpt_dir)[-1]
     # laptq
-    # with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-mean-test-{}.pkl'.format(model_id), 'wb') as f:
+    # with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/cached-scores/TSGAD-mean-test-{}.pkl'.format(model_id), 'wb') as f:
     #     pickle.dump(mean, f)
     mean = torch.from_numpy(mean).to(args.device)
 
@@ -127,13 +127,13 @@ def main ():
     print('AUC PR: {}'.format(auc_pr))
     print('EER: {}'.format(eer))
     print('EER TH: {}'.format(eer_th))
-    auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_elbo), dataset['test'].metadata, save_results=False, seg_len=args.seg_len)
 
-    print("*** ELBO ***")
-    print('AUC ROC: {}'.format(auc_roc))
-    print('AUC PR: {}'.format(auc_pr))
-    print('EER: {}'.format(eer))
-    print('EER TH: {}'.format(eer_th))
+    # auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_elbo), dataset['test'].metadata, save_results=False, seg_len=args.seg_len)
+    # print("*** ELBO ***")
+    # print('AUC ROC: {}'.format(auc_roc))
+    # print('AUC PR: {}'.format(auc_pr))
+    # print('EER: {}'.format(eer))
+    # print('EER TH: {}'.format(eer_th))
     
 if __name__ == '__main__':
     main()

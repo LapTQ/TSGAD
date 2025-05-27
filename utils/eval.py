@@ -103,10 +103,11 @@ def score_dataset(mask_root, score_vals, metadata, max_clip=None, scene_id=None,
     scores_np = np.concatenate(scores_arr)
     # laptq
     # if model_id is not None:
-    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-gt.pkl', 'wb') as f:
+    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/cached-scores/TSGAD-gt.pkl', 'wb') as f:
     #         pickle.dump(gt_np, f)
-    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-scores-{}.pkl'.format(model_id), 'wb') as f:
+    #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/cached-scores/TSGAD-scores-{}.pkl'.format(model_id), 'wb') as f:
     #         pickle.dump(scores_np, f)
+
     # scores_np = scores_arr
     auc, shift, sigma, auc_pr, eer, eer_th = score_align(scores_np, gt_np, seg_len=seg_len) # fix the seg_len 
     return auc, shift, sigma, auc_pr, eer, eer_th

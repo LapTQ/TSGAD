@@ -38,6 +38,7 @@ def run(**kwargs):
     pathd_lbl = kwargs["pathd_lbl"]
     pathd_output = kwargs["pathd_output"]
     pathf_tsgad_mean_normal = kwargs["pathf_tsgad_mean_normal"]
+    threshold = kwargs["threshold"]
 
     assert model_backend in ["torch", "tensorrt"]
 
@@ -187,6 +188,8 @@ def run(**kwargs):
                     raise NotImplementedError("TensorRT backend is not implemented yet.")
                 mtime_2 = time.time()
                 LOGS["tsgad_infer_time"].append(mtime_2 - mtime_1)
+            
+            # print(prob)
 
             dict_result["list__obj__action_conf"]["0"].append(
                 float(prob)
@@ -194,7 +197,7 @@ def run(**kwargs):
             dict_result["list__obj__action_conf"]["1"].append(float(prob))
             dict_result["list__obj__action_conf"]["unk"].append(None)
 
-            if prob >= 9:
+            if prob >= threshold:
                 dict_result["list__obj__action_status"]["0"].append(False)
                 dict_result["list__obj__action_status"]["1"].append(True)
                 dict_result["list__obj__action_status"]["unk"].append(False)
@@ -222,29 +225,29 @@ def run(**kwargs):
 if __name__ == "__main__":
 
     for subpathf in [
-        # "shoplifting-25min.mp4",
-        "satudora-1min.mp4",
+        "shoplifting-25min.mp4",
+        # "satudora-1min.mp4",
         # "1568080723085_67014_fix.mkv",
     ]:
 
         kwargs = {
-            "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD3/results/vae_37.pth.tar",
+            "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD4/results/vae_7.pth.tar",
             "model_backend": "torch",
             # "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/convert-onnx-to-tensorrt/tsstg-hand-model-last.trt",
             # "model_backend": "tensorrt",
-            "pathf_tsgad_mean_normal": '/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-cached-scores/TSGAD-mean-test-vae_37.pth.tar.pkl',
+            "pathf_tsgad_mean_normal": '/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/cached-scores/TSGAD-mean-test-vae_7.pth.tar.pkl',
             
-            # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.4--iou-0.45--filterby-size--JSON".format(
+            # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.4--iou-0.45--filterby-size--all-keypoints--JSON".format(
             #     subpathf
             # ),
-            # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--JSON".format(
-            #     subpathf
-            # ),
-            "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/helper--extract--ultralytics--imgdir/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--JSON".format(
+            "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--all-keypoints--JSON".format(
                 subpathf
             ),
+            # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/helper--extract--ultralytics--imgdir/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--all-keypoints--JSON".format(
+            #     subpathf
+            # ),
 
-            "pathd_output": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD3/predict/{}/labels".format(
+            "pathd_output": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/predict/{}/labels".format(
                 subpathf
             ),
             # "pathd_output": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD3/predict-trt/{}/labels".format(
@@ -252,6 +255,7 @@ if __name__ == "__main__":
             # ),
 
             "sequence_length": 24,
+            "threshold": 13.5,
             "device": "cuda:1",
             "joint_order": [
                 "nose",
