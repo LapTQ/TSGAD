@@ -96,11 +96,11 @@ def score_dataset(mask_root, score_vals, metadata, max_clip=None, scene_id=None,
     # print(score_vals.shape, score_vals[:10])
     # print(metadata)
     gt_arr, scores_arr, score_ids_arr, metadata_arr = get_dataset_scores(mask_root, score_vals, metadata, max_clip, scene_id, save_results=save_results, directory=directory)
-    # laptq: 
-    # print('>>>>>>>>>', gt_arr)
-    # print('+++++++++', scores_arr)
+    # laptq:
     gt_np = np.concatenate(gt_arr)
     scores_np = np.concatenate(scores_arr)
+    # print('>>>>>>>>>', len(gt_np))
+    # print('+++++++++', len(scores_np))
     # laptq
     # if model_id is not None:
     #     with open('/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD4/cached-scores/TSGAD-gt.pkl', 'wb') as f:
@@ -179,10 +179,10 @@ def score_align(scores_np, gt, seg_len=30, sigma=40):
     shift = seg_len + (seg_len // 2) - 1
     scores_shifted[shift:] = scores_np[:-shift]
     scores_smoothed = gaussian_filter1d(scores_shifted, sigma)
+
+    # print(len(gt), len(scores_np), len(scores_shifted), len(scores_smoothed))
     
-    # laptq
-    scores_to_eval = scores_np
-    # scores_to_eval = scores_smoothed
+    scores_to_eval = scores_smoothed
     
     auc_roc = roc_auc_score(gt, scores_to_eval)
     # laptq:

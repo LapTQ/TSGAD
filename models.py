@@ -273,7 +273,7 @@ class GraphEncoder(nn.Module):
         x_size = x.size()
         x = x.contiguous()
         x = x.view(N, -1)
-        x = torch.sigmoid(x)
+        # x = torch.tanh(x) * 10    # laptq: commented out
         return x, x_size, x_ref
     
     def gen_ae(self, enc_ch_fac, enc_stride, dec_ch_fac=None, dec_stride=None, symmetric=True, dec_1st_residual=True):
@@ -480,6 +480,10 @@ class VAE(nn.Module):
             # the encoder and decoder networks into gpu memory
             self.cuda()
 
+        # laptq: 2 linear layers to avoid batch norm effects from the encoder
+        self.mu = nn.Linear(int(self.encoder.hidden_dim/self.q_dist.nparams), int(self.encoder.hidden_dim/self.q_dist.nparams))
+        self.logvar = nn.Linear(int(self.encoder.hidden_dim/self.q_dist.nparams), int(self.encoder.hidden_dim/self.q_dist.nparams))
+
     # return prior parameters wrapped in a suitable Variable
     def _get_prior_params(self, batch_size=1):
         expanded_size = (batch_size,) + self.prior_params.size()
@@ -519,6 +523,27 @@ class VAE(nn.Module):
              return zs, z_params, x_size 
         else:
             return zs, z_params
+        
+    def encode_v2(self, x):
+        # x = x.view(x.size(0), 1, 64, 64) no need for this as my data matches my model 
+        # use the encoder to get the parameters used to define q(z|x)
+        # z_params = self.encoder.forward(x).view(x.size(0), self.z_dim, self.q_dist.nparams)
+        if self.graph:
+            z_params, x_size, _  = self.encoder.forward(x)
+            z_params = z_params.view(x.size(0), int(self.encoder.hidden_dim/self.q_dist.nparams), self.q_dist.nparams)
+            # laptq
+            mu = self.mu(z_params[:, :, 0])
+            logvar = self.logvar(z_params[:, :, 1])
+            z_params = torch.stack([mu, logvar], dim=2)
+        else:
+            # laptq
+            raise NotImplementedError("V2 encoding not implemented for non-graph data")
+        # sample the latent code z
+        zs = z_params[:, :, 0] + torch.randn_like(z_params[:, :, 1]) * torch.exp(0.5 * z_params[:, :, 1]) # reparameterization trick, assuming mu and logvar
+        if self.graph:
+             return zs, z_params, x_size 
+        else:
+            return zs, z_params
 
     def decode(self, z, x_size=None):
         if self.graph:
@@ -535,6 +560,15 @@ class VAE(nn.Module):
             xs, x_params = self.decode(zs, x_size=x_size)
         else:
             zs, z_params = self.encode(x)
+            xs, x_params = self.decode(zs)
+        return xs, x_params, zs, z_params
+    
+    def reconstruct_img_v2(self, x):
+        if self.graph:
+            zs, z_params, x_size = self.encode_v2(x)
+            xs, x_params = self.decode(zs, x_size=x_size)
+        else:
+            zs, z_params = self.encode_v2(x)
             xs, x_params = self.decode(zs)
         return xs, x_params, zs, z_params
 
@@ -624,6 +658,55 @@ class VAE(nn.Module):
             modified_elbo = self.gamma * modified_elbo - self.alpha * mse_loss
             
         return modified_elbo, elbo.detach()
+    
+    def elbo_v2(self, x_class1, x_class2):
+        # log p(x|z) + log p(z) - log q(z|x)
+        batch_size_class1 = x_class1.size(0)
+        batch_size_class2 = x_class2.size(0)
+
+        if not hasattr(self, 'num_kpts'):
+            self.num_kpts = None
+        if self.num_kpts is None:
+            self.num_kpts = x_class1.size(-1)
+        if self.graph:
+            x_class1 = x_class1.view(batch_size_class1, 2, self.input_frames, self.num_kpts)
+            x_class2 = x_class2.view(batch_size_class2, 2, self.input_frames, self.num_kpts)
+        else:
+            x_class1 = x_class1.view(batch_size_class1, 1, 64, 64)
+            x_class2 = x_class2.view(batch_size_class2, 1, 64, 64)
+
+        # prior_params = self._get_prior_params(batch_size)
+        xs_class1, x_params_class1, zs_class1, z_params_class1 = self.reconstruct_img_v2(x_class1)
+        xs_class2, x_params_class2, zs_class2, z_params_class2 = self.reconstruct_img_v2(x_class2)
+        print()
+        print()
+        print(">>>>> Mean: {:.2f}, {:.2f}".format(z_params_class1[:, :, 0].mean().item(), z_params_class2[:, :, 0].mean().item()))
+
+        mu_class1 = z_params_class1[:, :, 0]
+        logvar_class1 = z_params_class1[:, :, 1]
+        target_mu_class1 = torch.tensor(-5, device=self.device)
+        target_logvar_class1 = torch.tensor(0, device=self.device)
+
+        mu_class2 = z_params_class2[:, :, 0]
+        logvar_class2 = z_params_class2[:, :, 1]
+        target_mu_class2 = torch.tensor(5, device=self.device)
+        target_logvar_class2 = torch.tensor(0, device=self.device)
+
+        loss_rec_class1 = nn.MSELoss(reduction='mean')(x_params_class1, x_class1)
+        loss_rec_class2 = nn.MSELoss(reduction='mean')(x_params_class2, x_class2)
+
+        loss_kl_class1 = 0.5 * torch.mean(target_logvar_class1 - logvar_class1 + (logvar_class1.exp() + (mu_class1 - target_mu_class1).pow(2)) / target_logvar_class1.exp() - 1)
+        loss_kl_class2 = 0.5 * torch.mean(target_logvar_class2 - logvar_class2 + (logvar_class2.exp() + (mu_class2 - target_mu_class2).pow(2)) / target_logvar_class2.exp() - 1)
+
+        loss_rec = loss_rec_class1 + loss_rec_class2
+        loss_kl = loss_kl_class1 + loss_kl_class2
+        
+        elbo = self.alpha * loss_rec + self.gamma * loss_kl
+
+        print("--- Loss class 1:", loss_rec_class1.item(), loss_kl_class1.item())
+        print("--- Loss class 2:", loss_rec_class2.item(), loss_kl_class2.item())
+        
+        return elbo, elbo.detach()
 
 
 def logsumexp(value, dim=None, keepdim=False):

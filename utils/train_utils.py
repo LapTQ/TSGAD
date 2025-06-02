@@ -14,6 +14,8 @@ from datetime import datetime
 from utils.eval import score_dataset
 from utils.schedulers.delayed_sched import *
 from utils.schedulers.cosine_annealing_with_warmup import *
+from sklearn.metrics import precision_recall_curve, auc
+
 
 def init_model_params(args, dataset):
     return {
@@ -235,6 +237,154 @@ class Trainer:
             print('AUC PR: {}'.format(auc_pr))
             print('EER: {}'.format(eer))
             print('EER TH: {}'.format(eer_th))
+            
+        if args.visdom:
+            self.plot_elbo(train_elbo, vis)
+        
+        return checkpoint_filename
+    
+
+    def train_v2(self, num_epochs=None, log=True, checkpoint_filename=None, args=None, train_2ndloader=None):
+        best_loss = -1e9
+        train_elbo = []
+        time_str = time.strftime("%b%d_%H%M_")
+        if checkpoint_filename is None:
+            checkpoint_filename = time_str + self.fn_suffix + '_checkpoint.pth.tar'
+        if num_epochs is None:  # For manually setting number of epochs, i.e. for fine tuning
+            start_epoch = self.args.start_epoch
+            num_epochs = args.epochs
+        else:
+            start_epoch = 0
+            
+        self.model = self.model.to(args.device)
+        elbo_running_mean = utils.RunningAverageMeter()
+        if args.visdom:
+            vis = visdom.Visdom(env=args.save, port=4500)
+        it = 0 
+
+        train_2nditer = iter(train_2ndloader)
+
+        for epoch in range(start_epoch, num_epochs):
+            print("Started epoch {}".format(epoch))
+            self.model.train()
+            loss = []
+            pbar = tqdm(self.train_loader)
+            for itern, data_arr in enumerate(pbar):
+                it = it + 1
+                # this time, train_loader has only 1 class (normal)
+                data_class1 = data_arr[0].to(args.device, non_blocking=True)
+                data_class1 = data_class1[:,0:2, :, :]
+                data_class1 = data_class1.to(torch.float32)
+
+                # train_2ndloader has both classes (normal and anomaly)
+                try:
+                    data_2nd, labels_2nd = next(train_2nditer)
+                except StopIteration:
+                    train_2nditer = iter(train_2ndloader)
+                    data_2nd, labels_2nd = next(train_2nditer)
+                data_2nd = data_2nd.to(args.device, non_blocking=True)
+                labels_2nd = labels_2nd.to(args.device, non_blocking=True)
+                
+                labels_1st = torch.zeros(data_class1.shape[0], device=args.device)
+
+                data = torch.cat((data_class1, data_2nd), dim=0)
+                labels = torch.cat((labels_1st, labels_2nd), dim=0)
+
+                data_class1 = data[labels == 0]
+                data_class2 = data[labels == 1]
+
+                if len(data_class2) == 0:
+                    continue
+
+                # self.anneal_kl(it)
+                self.optimizer.zero_grad()
+                mtime_1 = time.time()
+                obj, elbo = self.model.elbo_v2(data_class1, data_class2)
+                mtime_2 = time.time()
+                pbar.set_postfix(elbo_time=mtime_2-mtime_1, elbo_fps=1/(mtime_2-mtime_1))
+                
+                if utils.isnan(obj).any():
+                    raise ValueError('NaN spotted in objective.')
+                obj.backward()
+                elbo_running_mean.update(elbo.mean())
+                self.optimizer.step()
+                loss.append(elbo_running_mean.avg)
+                
+            print('[Epoch %03d] \tbeta %.2f \tlambda %.2f training ELBO: %.4f ' % (
+                epoch, self.model.beta, self.model.lamb, torch.stack(loss).mean()
+                )
+            )
+            new_lr = self.optimizer.param_groups[0]['lr']
+            new_lr = self.adjust_lr(epoch, new_lr)
+            print('lr: {0:.3e}'.format(new_lr))
+            train_elbo.append(torch.stack(loss).mean)
+            
+            if torch.stack(loss).mean()> best_loss:
+                best_loss = torch.stack(loss).mean()
+            self.save_checkpoint(epoch, args=args, filename=checkpoint_filename)
+            print("Model saved!")
+            eval_elbo = []
+            eval_l2 = []
+            eval_lbl = []
+            dataset_size = len(self.test_loader.dataset)
+            self.model.eval()
+
+            mean_class1 = []
+            mean_class2 = []
+            for i, (data_2nd, labels_2nd) in enumerate(tqdm(train_2ndloader)):
+                data_2nd = data_2nd.to(args.device, non_blocking=True)
+                labels_2nd = labels_2nd.to(args.device, non_blocking=True)
+
+                data_class1 = data_2nd[labels_2nd == 0]
+                data_class2 = data_2nd[labels_2nd == 1]
+
+                _, z_params_class1, _ = self.model.encode(data_class1)
+                z_params_class1 = z_params_class1.view(z_params_class1.shape[0], -1)
+                mean_class1.extend(z_params_class1.mean(dim=0).cpu().numpy())
+
+                _, z_params_class2, _ = self.model.encode(data_class2)
+                z_params_class2 = z_params_class2.view(z_params_class2.shape[0], -1)
+                mean_class2.extend(z_params_class2.mean(dim=0).cpu().numpy())
+            mean_class1 = torch.from_numpy(np.mean(mean_class1, axis=0)).to(args.device)
+            mean_class2 = torch.from_numpy(np.mean(mean_class2, axis=0)).to(args.device)
+
+            with torch.no_grad():
+                while True:
+                    # this time, test_loader has both classes (normal and anomaly)
+                    try:
+                        data_2nd, labels_2nd = next(train_2nditer)
+                    except StopIteration:
+                        break
+                    data_2nd = data_2nd.to(args.device, non_blocking=True)
+                    labels_2nd = labels_2nd.to(args.device, non_blocking=True)
+
+                    data_class1 = data_2nd[labels_2nd == 0]
+                    data_class2 = data_2nd[labels_2nd == 1]
+
+                    _, z_params_class1, _ = self.model.encode(data_class1)
+                    z_params_class1 = z_params_class1.view(z_params_class1.shape[0], -1)
+                    l2_distance_class1 = (torch.sqrt(torch.sum((z_params_class1 - mean_class1)**2, dim=1))).cpu().numpy()
+                    eval_l2.extend(l2_distance_class1)
+
+                    _, z_params_class2, _ = self.model.encode(data_class2)
+                    z_params_class2 = z_params_class2.view(z_params_class2.shape[0], -1)
+                    l2_distance_class2 = (torch.sqrt(torch.sum((z_params_class2 - mean_class2)**2, dim=1))).cpu().numpy()
+                    eval_l2.extend(l2_distance_class2)
+
+                    dataset_size_class1 = len(train_2ndloader.dataset)
+                    dataset_size_class2 = len(train_2ndloader.dataset)
+                    obj, elbo = self.model.elbo_v2(data_class1, dataset_size_class1, x_class2=data_class2, dataset_size_class2=dataset_size_class2)
+                    eval_lbl.extend([0] * len(data_class1) + [1] * len(data_class2))
+                    
+                    eval_elbo.extend(elbo.cpu().numpy())
+
+            precision, recall, thresholds = precision_recall_curve(np.array(eval_lbl), np.array(eval_l2))
+            auc_precision_recall = auc(recall, precision)
+            print('AUC PR by elbo: {}'.format(auc_precision_recall))
+
+            precision, recall, thresholds = precision_recall_curve(np.array(eval_lbl), -np.array(eval_elbo))
+            auc_precision_recall = auc(recall, precision)
+            print('AUC PR by elbo: {}'.format(auc_precision_recall))
             
         if args.visdom:
             self.plot_elbo(train_elbo, vis)

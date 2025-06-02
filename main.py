@@ -128,12 +128,12 @@ def main ():
     print('EER: {}'.format(eer))
     print('EER TH: {}'.format(eer_th))
 
-    # auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, np.array(eval_elbo), dataset['test'].metadata, save_results=False, seg_len=args.seg_len)
-    # print("*** ELBO ***")
-    # print('AUC ROC: {}'.format(auc_roc))
-    # print('AUC PR: {}'.format(auc_pr))
-    # print('EER: {}'.format(eer))
-    # print('EER TH: {}'.format(eer_th))
+    auc_roc, dp_shift, dp_sigma, auc_pr, eer, eer_th = score_dataset(args.mask_root, -np.array(eval_elbo), dataset['test'].metadata, save_results=False, seg_len=args.seg_len)
+    print("*** ELBO ***")
+    print('AUC ROC: {}'.format(auc_roc))
+    print('AUC PR: {}'.format(auc_pr))
+    print('EER: {}'.format(eer))
+    print('EER TH: {}'.format(eer_th))
     
 if __name__ == '__main__':
     main()
