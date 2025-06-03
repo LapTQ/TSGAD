@@ -177,3 +177,29 @@ def normalize_pose(pose_data, **kwargs):
     #     pose_data_scaled[..., :2] = pose_data_scaled[..., :2] / max_kp_coord[:, None, None, None]
     #
     # return pose_data_scaled
+
+
+def normalize_pose_v2(pose_data, **kwargs):
+    """
+    Normalize keypoint values to the range of [-1, 1]
+    :param pose_data: Formatted as [N, T, V, F], e.g. (Batch=64, Frames=12, 18, 3)
+    :param vid_res:
+    :param symm_range:
+    :return:
+    """
+    symm_range = kwargs.get('symm_range', False)
+    pose_data = np.nan_to_num(pose_data)
+
+    # laptq
+    xmin = pose_data[:, :, :, 0].min(axis=2)
+    xmax = pose_data[:, :, :, 0].max(axis=2)
+    ymin = pose_data[:, :, :, 1].min(axis=2)
+    ymax = pose_data[:, :, :, 1].max(axis=2)
+    pose_data_normalized = pose_data.copy()
+    pose_data_normalized[..., 0] = (pose_data[..., 0] - xmin[:, :, None]) / (xmax[:, :, None] - xmin[:, :, None])
+    pose_data_normalized[..., 1] = (pose_data[..., 1] - ymin[:, :, None]) / (ymax[:, :, None] - ymin[:, :, None])
+
+    # rescale to [-1, 1]
+    pose_data_normalized[..., :2] = 2 * pose_data_normalized[..., :2] - 1
+
+    return pose_data_normalized
