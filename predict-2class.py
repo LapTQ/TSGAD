@@ -234,36 +234,30 @@ def run(**kwargs):
 if __name__ == "__main__":
 
     for subpathf in [
-        "Shoplifting/Shoplifting__30_.mp4",
-
+        # "Shoplifting/Shoplifting__30_.mp4",
+        # "Shoplifting/Shoplifting__68_.mp4",
         # "shoplifting-25min.mp4",
-        # "satudora-1min.mp4",
+        "satudora-1min.mp4",
         # "1568080723085_67014_fix.mkv",
     ]:
 
         kwargs = {
-            "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD-2class--TRAIN-mnit-roboflow-poselift/results/tsgad--last.pth",
+            "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD-2class--TRAIN-mnit-roboflow-poselift--lr0.001--no-mse/results/tsgad--best-by_l2-f1.pth",
             "model_backend": "torch",
             # "model_path": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/convert-onnx-to-tensorrt/tsstg-hand-model-last.trt",
             # "model_backend": "tensorrt",
-
-            "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.4--iou-0.45--filterby-size--all-keypoints--JSON".format(
-                subpathf
-            ),
             # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.4--iou-0.45--filterby-size--all-keypoints--JSON".format(
             #     subpathf
             # ),
             # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/sample_frames_by_skipping/full/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--all-keypoints--JSON".format(
             #     subpathf
             # ),
-            # "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/helper--extract--ultralytics--imgdir/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--all-keypoints--JSON".format(
-            #     subpathf
-            # ),
-
-            "pathd_output": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-2class--TRAIN-mnit-roboflow-poselift/predict/{}/labels".format(
+            "pathd_lbl": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/helper--extract--ultralytics--imgdir/{}/labels--PRED--DATA--None--MODEL--yolov8x-pose--TRAIN--exp--PREDICT--imgsz-640--conf-0.1--iou-0.45--all-keypoints--JSON".format(
                 subpathf
             ),
-
+            "pathd_output": "/home/laptq/laptq-fs26-shoplifting-detection/outputs/TSGAD-2class--TRAIN-mnit-roboflow-poselift--lr0.001--no-mse/predict/{}/labels".format(
+                subpathf
+            ),
             "sequence_length": 24,
             "device": "cuda:1",
             "threshold": 0.5,
@@ -286,6 +280,6 @@ if __name__ == "__main__":
                 "left_ankle",
                 "right_ankle",
             ],
-            "pathf_means": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD-2class--TRAIN-mnit-roboflow-poselift/results/means_val.pkl",
+            "pathf_means": "/home/laptq/laptq-fs26-shoplifting-detection/runs/TSGAD-2class--TRAIN-mnit-roboflow-poselift--lr0.001--no-mse/results/means_val.pkl",
         }
         run(**kwargs)
