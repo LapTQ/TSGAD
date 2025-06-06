@@ -297,33 +297,6 @@ class Trainer:
 
         return checkpoint_filename
 
-    def log_density(self, **kwargs):
-        input_ = kwargs["input_"]  # shape (N, M)
-        target_mu = kwargs["target_mu"]
-        target_logvar = kwargs["target_logvar"]
-
-        return np.sum(
-            -0.5 * np.log(2 * np.pi)
-            - 0.5 * target_logvar
-            - (input_ - target_mu) ** 2 / (2 * np.exp(target_logvar)),
-            axis=1,
-        )
-
-    def eval_metrics(self, eval_lbl, eval_pred):
-        precision = precision_score(eval_lbl, eval_pred, average="binary", pos_label=1)
-        recall = recall_score(eval_lbl, eval_pred, average="binary", pos_label=1)
-        f1 = f1_score(eval_lbl, eval_pred, average="binary", pos_label=1)
-        acc = accuracy_score(eval_lbl, eval_pred)
-        cf_matrix = confusion_matrix(eval_lbl, eval_pred, labels=[0, 1], normalize=None)
-
-        return {
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "accuracy": acc,
-            "confusion_matrix": cf_matrix,
-        }
-
     def train_v2(
         self,
         num_epochs=None,
@@ -459,7 +432,7 @@ class Trainer:
             print("lr: {0:.3e}".format(new_lr))
 
             # validation
-            _ = self.val(args, val_loader)
+            _ = evaluate_model(self.model, args, val_loader)
             mean_class1 = _["mean_class1"]
             mean_class2 = _["mean_class2"]
             metrics["by_l2"]["pre"]["val"].append(_["metrics"]["by_l2"]["pre"]["val"])
@@ -584,198 +557,195 @@ class Trainer:
 
         return checkpoint_filename
 
-    def val(self, args, val_loader):
-        self.model.eval()
 
-        mean_class1 = []
-        mean_class2 = []
+def evaluate_model(model, args, val_loader):
+    model.eval()
 
-        metrics = {}
+    mean_class1 = []
+    mean_class2 = []
 
-        with torch.no_grad():
-            for i, (data, labels) in enumerate(tqdm(val_loader)):
-                data = data.to(args.device, non_blocking=True)
-                labels = labels.to(args.device, non_blocking=True)
+    metrics = {}
 
-                data_class1 = data[labels == 0]
-                data_class2 = data[labels == 1]
+    with torch.no_grad():
+        for i, (data, labels) in enumerate(tqdm(val_loader)):
+            data = data.to(args.device, non_blocking=True)
+            labels = labels.to(args.device, non_blocking=True)
 
-                _, z_params_class1, _ = self.model.encode_v2(data_class1)
-                if len(data_class1) > 0:
-                    mean_class1.extend(z_params_class1[:, :, 0].cpu().numpy())
+            data_class1 = data[labels == 0]
+            data_class2 = data[labels == 1]
 
-                _, z_params_class2, _ = self.model.encode_v2(data_class2)
-                if len(data_class2) > 0:
-                    mean_class2.extend(z_params_class2[:, :, 0].cpu().numpy())
-        mean_class1 = np.mean(mean_class1, axis=0)
-        mean_class2 = np.mean(mean_class2, axis=0)
+            _, z_params_class1, _ = model.encode_v2(data_class1)
+            if len(data_class1) > 0:
+                mean_class1.extend(z_params_class1[:, :, 0].cpu().numpy())
 
-        eval_l2 = []
-        eval_logdensity = []
-        eval_mean = []
-        eval_lbl = []
-        with torch.no_grad():
-            for i, (data, labels) in enumerate(tqdm(val_loader)):
-                data = data.to(args.device, non_blocking=True)
-                labels = labels.to(args.device, non_blocking=True)
+            _, z_params_class2, _ = model.encode_v2(data_class2)
+            if len(data_class2) > 0:
+                mean_class2.extend(z_params_class2[:, :, 0].cpu().numpy())
+    mean_class1 = np.mean(mean_class1, axis=0)
+    mean_class2 = np.mean(mean_class2, axis=0)
 
-                data_class1 = data[labels == 0]
-                data_class2 = data[labels == 1]
+    eval_l2 = []
+    eval_logdensity = []
+    eval_mean = []
+    eval_lbl = []
+    with torch.no_grad():
+        for i, (data, labels) in enumerate(tqdm(val_loader)):
+            data = data.to(args.device, non_blocking=True)
+            labels = labels.to(args.device, non_blocking=True)
 
-                _, z_params_class1, _ = self.model.encode_v2(data_class1)
-                _, z_params_class2, _ = self.model.encode_v2(data_class2)
+            data_class1 = data[labels == 0]
+            data_class2 = data[labels == 1]
 
-                eval_l2_class1 = np.argmin(
-                    np.stack(
-                        [
-                            np.sum(
-                                (z_params_class1[:, :, 0].cpu().numpy() - mean_class1)
-                                ** 2,
-                                axis=1,
-                            ),
-                            np.sum(
-                                (z_params_class1[:, :, 0].cpu().numpy() - mean_class2)
-                                ** 2,
-                                axis=1,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+            _, z_params_class1, _ = model.encode_v2(data_class1)
+            _, z_params_class2, _ = model.encode_v2(data_class2)
+
+            eval_l2_class1 = np.argmin(
+                np.stack(
+                    [
+                        np.sum(
+                            (z_params_class1[:, :, 0].cpu().numpy() - mean_class1) ** 2,
+                            axis=1,
+                        ),
+                        np.sum(
+                            (z_params_class1[:, :, 0].cpu().numpy() - mean_class2) ** 2,
+                            axis=1,
+                        ),
+                    ],
                     axis=1,
-                )
-                eval_l2_class2 = np.argmin(
-                    np.stack(
-                        [
-                            np.sum(
-                                (z_params_class2[:, :, 0].cpu().numpy() - mean_class1)
-                                ** 2,
-                                axis=1,
-                            ),
-                            np.sum(
-                                (z_params_class2[:, :, 0].cpu().numpy() - mean_class2)
-                                ** 2,
-                                axis=1,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+                ),
+                axis=1,
+            )
+            eval_l2_class2 = np.argmin(
+                np.stack(
+                    [
+                        np.sum(
+                            (z_params_class2[:, :, 0].cpu().numpy() - mean_class1) ** 2,
+                            axis=1,
+                        ),
+                        np.sum(
+                            (z_params_class2[:, :, 0].cpu().numpy() - mean_class2) ** 2,
+                            axis=1,
+                        ),
+                    ],
                     axis=1,
-                )
+                ),
+                axis=1,
+            )
 
-                eval_logdensity_class1 = np.argmax(
-                    np.stack(
-                        [
-                            self.log_density(
-                                input_=z_params_class1[:, :, 0].cpu().numpy(),
-                                target_mu=-5,
-                                target_logvar=0,
-                            ),
-                            self.log_density(
-                                input_=z_params_class1[:, :, 0].cpu().numpy(),
-                                target_mu=5,
-                                target_logvar=0,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+            eval_logdensity_class1 = np.argmax(
+                np.stack(
+                    [
+                        log_density(
+                            input_=z_params_class1[:, :, 0].cpu().numpy(),
+                            target_mu=-5,
+                            target_logvar=0,
+                        ),
+                        log_density(
+                            input_=z_params_class1[:, :, 0].cpu().numpy(),
+                            target_mu=5,
+                            target_logvar=0,
+                        ),
+                    ],
                     axis=1,
-                )
-                eval_logdensity_class2 = np.argmax(
-                    np.stack(
-                        [
-                            self.log_density(
-                                input_=z_params_class2[:, :, 0].cpu().numpy(),
-                                target_mu=-5,
-                                target_logvar=0,
-                            ),
-                            self.log_density(
-                                input_=z_params_class2[:, :, 0].cpu().numpy(),
-                                target_mu=5,
-                                target_logvar=0,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+                ),
+                axis=1,
+            )
+            eval_logdensity_class2 = np.argmax(
+                np.stack(
+                    [
+                        log_density(
+                            input_=z_params_class2[:, :, 0].cpu().numpy(),
+                            target_mu=-5,
+                            target_logvar=0,
+                        ),
+                        log_density(
+                            input_=z_params_class2[:, :, 0].cpu().numpy(),
+                            target_mu=5,
+                            target_logvar=0,
+                        ),
+                    ],
                     axis=1,
-                )
+                ),
+                axis=1,
+            )
 
-                eval_mean_class1 = np.argmin(
-                    np.stack(
-                        [
-                            np.mean(
-                                np.abs(z_params_class1[:, :, 0].cpu().numpy() - (-5)),
-                                axis=1,
-                            ),
-                            np.mean(
-                                np.abs(z_params_class1[:, :, 0].cpu().numpy() - 5),
-                                axis=1,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+            eval_mean_class1 = np.argmin(
+                np.stack(
+                    [
+                        np.mean(
+                            np.abs(z_params_class1[:, :, 0].cpu().numpy() - (-5)),
+                            axis=1,
+                        ),
+                        np.mean(
+                            np.abs(z_params_class1[:, :, 0].cpu().numpy() - 5),
+                            axis=1,
+                        ),
+                    ],
                     axis=1,
-                )
-                eval_mean_class2 = np.argmax(
-                    np.stack(
-                        [
-                            np.mean(
-                                np.abs(z_params_class2[:, :, 0].cpu().numpy() - (-5)),
-                                axis=1,
-                            ),
-                            np.mean(
-                                np.abs(z_params_class2[:, :, 0].cpu().numpy() - 5),
-                                axis=1,
-                            ),
-                        ],
-                        axis=1,
-                    ),
+                ),
+                axis=1,
+            )
+            eval_mean_class2 = np.argmax(
+                np.stack(
+                    [
+                        np.mean(
+                            np.abs(z_params_class2[:, :, 0].cpu().numpy() - (-5)),
+                            axis=1,
+                        ),
+                        np.mean(
+                            np.abs(z_params_class2[:, :, 0].cpu().numpy() - 5),
+                            axis=1,
+                        ),
+                    ],
                     axis=1,
-                )
+                ),
+                axis=1,
+            )
 
-                eval_l2.extend(eval_l2_class1.tolist() + eval_l2_class2.tolist())
-                eval_logdensity.extend(
-                    eval_logdensity_class1.tolist() + eval_logdensity_class2.tolist()
-                )
-                eval_mean.extend(eval_mean_class1.tolist() + eval_mean_class2.tolist())
-                eval_lbl.extend([0] * len(data_class1) + [1] * len(data_class2))
+            eval_l2.extend(eval_l2_class1.tolist() + eval_l2_class2.tolist())
+            eval_logdensity.extend(
+                eval_logdensity_class1.tolist() + eval_logdensity_class2.tolist()
+            )
+            eval_mean.extend(eval_mean_class1.tolist() + eval_mean_class2.tolist())
+            eval_lbl.extend([0] * len(data_class1) + [1] * len(data_class2))
 
-        eval_lbl = np.array(eval_lbl)
-        eval_l2 = np.array(eval_l2)
-        eval_logdensity = np.array(eval_logdensity)
-        eval_mean = np.array(eval_mean)
+    eval_lbl = np.array(eval_lbl)
+    eval_l2 = np.array(eval_l2)
+    eval_logdensity = np.array(eval_logdensity)
+    eval_mean = np.array(eval_mean)
 
-        _ = self.eval_metrics(eval_lbl, eval_l2)
-        metrics["by_l2"] = {
-            "pre": {"val": _["precision"]},
-            "rec": {"val": _["recall"]},
-            "f1": {"val": _["f1"]},
-            "acc": {"val": _["accuracy"]},
-            "cf_matrix": {"val": _["confusion_matrix"]},
-        }
+    _ = eval_metrics(eval_lbl, eval_l2)
+    metrics["by_l2"] = {
+        "pre": {"val": _["precision"]},
+        "rec": {"val": _["recall"]},
+        "f1": {"val": _["f1"]},
+        "acc": {"val": _["accuracy"]},
+        "cf_matrix": {"val": _["confusion_matrix"]},
+    }
 
-        _ = self.eval_metrics(eval_lbl, eval_logdensity)
-        metrics["by_logdensity"] = {
-            "pre": {"val": _["precision"]},
-            "rec": {"val": _["recall"]},
-            "f1": {"val": _["f1"]},
-            "acc": {"val": _["accuracy"]},
-            "cf_matrix": {"val": _["confusion_matrix"]},
-        }
+    _ = eval_metrics(eval_lbl, eval_logdensity)
+    metrics["by_logdensity"] = {
+        "pre": {"val": _["precision"]},
+        "rec": {"val": _["recall"]},
+        "f1": {"val": _["f1"]},
+        "acc": {"val": _["accuracy"]},
+        "cf_matrix": {"val": _["confusion_matrix"]},
+    }
 
-        _ = self.eval_metrics(eval_lbl, eval_mean)
-        metrics["by_mean"] = {
-            "pre": {"val": _["precision"]},
-            "rec": {"val": _["recall"]},
-            "f1": {"val": _["f1"]},
-            "acc": {"val": _["accuracy"]},
-            "cf_matrix": {"val": _["confusion_matrix"]},
-        }
+    _ = eval_metrics(eval_lbl, eval_mean)
+    metrics["by_mean"] = {
+        "pre": {"val": _["precision"]},
+        "rec": {"val": _["recall"]},
+        "f1": {"val": _["f1"]},
+        "acc": {"val": _["accuracy"]},
+        "cf_matrix": {"val": _["confusion_matrix"]},
+    }
 
-        return {
-            "mean_class1": mean_class1,
-            "mean_class2": mean_class2,
-            "metrics": metrics,
-        }
+    return {
+        "mean_class1": mean_class1,
+        "mean_class2": mean_class2,
+        "metrics": metrics,
+    }
 
 
 def init_optimizer(type_str, **kwargs):
@@ -814,3 +784,32 @@ def init_scheduler(type_str, lr, epochs, warmup=3):
         print("Unable to initialize scheduler, defaulting to exp_decay")
 
     return sched_f
+
+
+def eval_metrics(eval_lbl, eval_pred):
+    precision = precision_score(eval_lbl, eval_pred, average="binary", pos_label=1)
+    recall = recall_score(eval_lbl, eval_pred, average="binary", pos_label=1)
+    f1 = f1_score(eval_lbl, eval_pred, average="binary", pos_label=1)
+    acc = accuracy_score(eval_lbl, eval_pred)
+    cf_matrix = confusion_matrix(eval_lbl, eval_pred, labels=[0, 1], normalize=None)
+
+    return {
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "accuracy": acc,
+        "confusion_matrix": cf_matrix,
+    }
+
+
+def log_density(**kwargs):
+    input_ = kwargs["input_"]  # shape (N, M)
+    target_mu = kwargs["target_mu"]
+    target_logvar = kwargs["target_logvar"]
+
+    return np.sum(
+        -0.5 * np.log(2 * np.pi)
+        - 0.5 * target_logvar
+        - (input_ - target_mu) ** 2 / (2 * np.exp(target_logvar)),
+        axis=1,
+    )
