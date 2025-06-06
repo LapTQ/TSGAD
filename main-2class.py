@@ -509,7 +509,9 @@ def main():
         gamma=args.model_gamma,
     )
 
-    if pretrained_model == None:
+    assert args.task in ['train', 'val']
+
+    if args.task == 'train':
         if not os.path.exists(args.model_save_dir):
             # Create the directory
             os.makedirs(args.model_save_dir)
@@ -534,8 +536,7 @@ def main():
             train_2ndloader=train_2ndloader,
             val_loader=val_loader,
         )
-
-    else:
+    elif args.task == 'val':
         checkpoint = torch.load(args.model_ckpt_dir, weights_only=True)
         vae.load_state_dict(checkpoint["state_dict"])
         print("Model loaded successfully!")
