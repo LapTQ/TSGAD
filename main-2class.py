@@ -12,6 +12,7 @@ from utils.train_utils import (
     Trainer,
     init_optimizer,
     init_scheduler,
+    evaluate_model,
 )
 from utils.data_utils import trans_list
 from models import VAE
@@ -23,6 +24,7 @@ from scipy.stats import norm, multivariate_normal
 import pickle
 from sklearn.model_selection import train_test_split
 from torch.utils.data import TensorDataset, DataLoader
+from pprint import pprint
 
 # laptq
 num_class = 2
@@ -509,9 +511,9 @@ def main():
         gamma=args.model_gamma,
     )
 
-    assert args.task in ['train', 'val']
+    assert args.task in ["train", "val"]
 
-    if args.task == 'train':
+    if args.task == "train":
         if not os.path.exists(args.model_save_dir):
             # Create the directory
             os.makedirs(args.model_save_dir)
@@ -536,11 +538,29 @@ def main():
             train_2ndloader=train_2ndloader,
             val_loader=val_loader,
         )
-    elif args.task == 'val':
+    elif args.task == "val":
         checkpoint = torch.load(args.model_ckpt_dir, weights_only=True)
-        vae.load_state_dict(checkpoint["state_dict"])
+        vae.load_state_dict(checkpoint)
         print("Model loaded successfully!")
         vae.to(args.device)
+
+        _ = evaluate_model(
+            model=vae,
+            args=args,
+            val_loader=val_loader,
+        )
+        mean_class1 = _["mean_class1"]
+        mean_class2 = _["mean_class2"]
+        metrics = _["metrics"]
+        pprint(metrics)
+
+        # save means
+        with open(
+            os.path.join(args.model_save_dir, "means_val.pkl"),
+            "wb",
+        ) as f:
+            pickle.dump({"mean_class1": mean_class1, "mean_class2": mean_class2}, f)
+        print("Class mean saved at:", args.model_save_dir)
 
 
 if __name__ == "__main__":
