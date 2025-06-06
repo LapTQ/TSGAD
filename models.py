@@ -899,16 +899,6 @@ class VAE(nn.Module):
             self.reconstruct_img_v2(x_class2)
         )
 
-        # debug
-        print()
-        print()
-        print(
-            ">>>>> Mean: {:.2f}, {:.2f}".format(
-                z_params_class1[:, :, 0].mean().item(),
-                z_params_class2[:, :, 0].mean().item(),
-            )
-        )
-
         mu_class1 = z_params_class1[:, :, 0]
         logvar_class1 = z_params_class1[:, :, 1]
 
@@ -936,7 +926,10 @@ class VAE(nn.Module):
         loss_rec = loss_rec_class1 + loss_rec_class2
         loss_kl = loss_kl_class1 + loss_kl_class2
 
-        loss = self.alpha * loss_rec + self.gamma * loss_kl
+        if self.mse:
+            loss = self.alpha * loss_rec + self.gamma * loss_kl
+        else:
+            loss = loss_kl
 
         # debug
         # print("--- Loss class 1: {:.3f}, {:.3f}".format(loss_rec_class1.item(), loss_kl_class1.item()))
@@ -947,6 +940,7 @@ class VAE(nn.Module):
             "loss": loss,
             "loss_rec": loss_rec,
             "loss_kl": loss_kl,
+            "means": [z_params_class1[:, :, 0].mean().item(), z_params_class2[:, :, 0].mean().item()],
         }
 
 

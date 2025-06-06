@@ -27,6 +27,7 @@ from sklearn.metrics import (
 import matplotlib.pyplot as plt
 import csv
 import pickle
+from pprint import pprint
 
 
 def init_model_params(args, dataset):
@@ -305,6 +306,7 @@ class Trainer:
         args=None,
         train_2ndloader=None,
         val_loader=None,
+        only_use_train_2ndloader=False,
     ):
         time_str = time.strftime("%b%d_%H%M_")
         if checkpoint_filename is None:
@@ -370,15 +372,19 @@ class Trainer:
                 except StopIteration:
                     train_2nditer = iter(train_2ndloader)
                     data_2nd, labels_2nd = next(train_2nditer)
+                    if only_use_train_2ndloader:
+                        break
                 data_2nd = data_2nd.to(args.device, non_blocking=True)
                 labels_2nd = labels_2nd.to(args.device, non_blocking=True)
 
                 labels_1st = torch.zeros(data_class1.shape[0], device=args.device)
 
-                data = torch.cat((data_class1, data_2nd), dim=0)
-                labels = torch.cat((labels_1st, labels_2nd), dim=0)
-                # data = data_2nd
-                # labels = labels_2nd
+                if not only_use_train_2ndloader:
+                    data = torch.cat((data_class1, data_2nd), dim=0)
+                    labels = torch.cat((labels_1st, labels_2nd), dim=0)
+                else:
+                    data = data_2nd
+                    labels = labels_2nd
 
                 data_class1 = data[labels == 0]
                 data_class2 = data[labels == 1]
@@ -396,6 +402,7 @@ class Trainer:
                 loss = _["loss"]
                 loss_rec = _["loss_rec"]
                 loss_kl = _["loss_kl"]
+                means = _["means"]
 
                 mtime_2 = time.time()
                 pbar.set_postfix(
@@ -403,6 +410,7 @@ class Trainer:
                     loss_rec=loss_rec.item(),
                     loss_kl=loss_kl.item(),
                     loss=loss.item(),
+                    means='[{}]'.format(', '.join(['{:.2f}'.format(m) for m in means])),
                 )
 
                 if utils.isnan(loss).any():
@@ -489,8 +497,12 @@ class Trainer:
                     "mean_f1": metrics["by_mean"]["f1"]["val"][-1],
                     "mean_pre": metrics["by_mean"]["pre"]["val"][-1],
                     "mean_rec": metrics["by_mean"]["rec"]["val"][-1],
+                    "mean_class1": np.mean(mean_class1).item(),
+                    "mean_class2": np.mean(mean_class2).item(),
                 }
             )
+
+            print("Val means:", [np.mean(mean_class1).item(), np.mean(mean_class2).item()])
 
             # save best model
             for cri in metrics:
@@ -740,6 +752,7 @@ def evaluate_model(model, args, val_loader):
         "acc": {"val": _["accuracy"]},
         "cf_matrix": {"val": _["confusion_matrix"]},
     }
+    pprint(metrics)
 
     return {
         "mean_class1": mean_class1,

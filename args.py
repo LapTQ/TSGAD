@@ -103,6 +103,7 @@ def init_parser(default_data_dir='data/', default_exp_dir='data/exp_dir'):
     parser.add_argument('--mse', action='store_true', help='Adds MSE loss to the elbo loss')
 
     parser.add_argument('--task', type=str)
+    parser.add_argument('--only_use_train_2ndloader', type=str, choices=['True', 'False'])
 
     return parser
 

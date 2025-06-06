@@ -432,6 +432,7 @@ def main():
     args = parser.parse_args()
 
     args.kp18_format = eval(args.kp18_format) if args.kp18_format is not None else None
+    args.only_use_train_2ndloader = eval(args.only_use_train_2ndloader) if args.only_use_train_2ndloader is not None else False
 
     if args.seed == 999:  # Record and init seed
         args.seed = torch.initial_seed()
@@ -465,7 +466,7 @@ def main():
     #     ) as f:
     #         dataset, loader = pickle.load(f)
     dataset, loader = get_dataset_and_loader(
-        args, trans_list=trans_list, only_test=(pretrained_model is not None)
+        args, trans_list=trans_list, only_test=args.task == "val"
     )
 
     # model_args = init_model_params(args, dataset)
@@ -537,6 +538,7 @@ def main():
             args=args,
             train_2ndloader=train_2ndloader,
             val_loader=val_loader,
+            only_use_train_2ndloader=args.only_use_train_2ndloader,
         )
     elif args.task == "val":
         checkpoint = torch.load(args.model_ckpt_dir, weights_only=True)
