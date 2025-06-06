@@ -403,6 +403,8 @@ class Trainer:
 
                 data = torch.cat((data_class1, data_2nd), dim=0)
                 labels = torch.cat((labels_1st, labels_2nd), dim=0)
+                # data = data_2nd
+                # labels = labels_2nd
 
                 data_class1 = data[labels == 0]
                 data_class2 = data[labels == 1]
