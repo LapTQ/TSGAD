@@ -104,6 +104,9 @@ def init_parser(default_data_dir='data/', default_exp_dir='data/exp_dir'):
 
     parser.add_argument('--task', type=str)
     parser.add_argument('--only_use_train_2ndloader', type=str, choices=['True', 'False'])
+    parser.add_argument('--save_cache_data', type=str, choices=['True', 'False'])
+    parser.add_argument('--use_cache_data', type=str, choices=['True', 'False'])
+    parser.add_argument('--cache_data_path', type=str)
 
     return parser
 

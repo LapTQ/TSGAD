@@ -173,7 +173,7 @@ class PoseSegDataset(Dataset):
         return self.num_transform * self.num_samples
 
 
-def get_dataset_and_loader(args, trans_list, only_test=False):
+def get_dataset_and_loader(args, trans_list, only_test=False, skip_testset=False):
     loader_args = {
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
@@ -206,17 +206,22 @@ def get_dataset_and_loader(args, trans_list, only_test=False):
             args.seg_stride if split == "train" else 1
         )  # No strides for test set
         dataset_args["vid_path"] = args.vid_path[split]
-        dataset[split] = PoseSegDataset(
-            args.pose_path[split],
-            path_to_vid_dir=args.vid_path[split],
-            normalize_pose_segs=normalize_pose_segs,
-            evaluate=evaluate,
-            abnormal_train_path=abnormal_train_path,
-            **dataset_args
-        )
-        loader[split] = DataLoader(
-            dataset[split], **loader_args, shuffle=(split == "train")
-        )
+        
+        if split == "test" and skip_testset:
+            dataset[split] = None
+            loader[split] = None
+        else:
+            dataset[split] = PoseSegDataset(
+                args.pose_path[split],
+                path_to_vid_dir=args.vid_path[split],
+                normalize_pose_segs=normalize_pose_segs,
+                evaluate=evaluate,
+                abnormal_train_path=abnormal_train_path,
+                **dataset_args
+            )
+            loader[split] = DataLoader(
+                dataset[split], **loader_args, shuffle=(split == "train")
+            )
     if only_test:
         loader["train"] = None
     return dataset, loader

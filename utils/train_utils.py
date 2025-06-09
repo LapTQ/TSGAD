@@ -414,9 +414,11 @@ class Trainer:
                 )
 
                 if utils.isnan(loss).any():
-                    raise ValueError("NaN spotted in objective.")
+                    # raise ValueError("NaN spotted in objective.")
+                    print("NaN spotted in objective.")
+                    continue
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 20)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 10)
                 self.optimizer.step()
 
                 ls_running_loss.append(loss.item())
